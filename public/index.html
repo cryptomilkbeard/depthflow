@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spoofing Monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <main class="wrap">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Live orderbook signal</p>
+          <h1>Spoofing Monitor</h1>
+          <p class="subtitle">
+            Tracks out-of-band size, distance from mid, and order movement over time.
+          </p>
+        </div>
+        <div class="controls">
+          <label>
+            Symbol
+            <select id="symbolSelect"></select>
+          </label>
+          <div class="pill">
+            Depth: <span id="depthValue">--</span>
+          </div>
+          <div class="pill">
+            Base MM Notional: <span id="baseNotional">--</span>
+          </div>
+          <div class="pill status-pill">
+            Live: <span id="liveStatus">--</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Mid Price</h2>
+          <canvas id="midChart"></canvas>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Max Distance (bps)</h2>
+          <canvas id="distanceChart"></canvas>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>OI & Funding</h2>
+          <div class="legend">
+            <span>OI: <strong id="oiValue">--</strong></span>
+            <span>Funding: <strong id="fundingValue">--</strong></span>
+            <span>Next: <strong id="fundingCountdown">--</strong></span>
+          </div>
+          <canvas id="oiFundingChart"></canvas>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Order Size Histogram</h2>
+          <canvas id="sizeHistChart"></canvas>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <div class="card">
+          <h2>Large Moves (Bids)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Market</th>
+                <th>Exchange</th>
+                <th>Price</th>
+                <th>Delta</th>
+                <th>Notional</th>
+                <th>BPS</th>
+              </tr>
+            </thead>
+            <tbody id="largeMovesBids"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>Large Moves (Asks)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Market</th>
+                <th>Exchange</th>
+                <th>Price</th>
+                <th>Delta</th>
+                <th>Notional</th>
+                <th>BPS</th>
+              </tr>
+            </thead>
+            <tbody id="largeMovesAsks"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Out-of-Band Levels</h2>
+          <div class="report-actions">
+            <a id="reportCsv" class="report-btn" href="/api/outliers/report/csv" target="_blank" rel="noopener">Export CSV</a>
+            <a id="reportPdf" class="report-btn report-btn--pdf" href="/api/outliers/report/pdf" target="_blank" rel="noopener">Export PDF</a>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Market</th>
+                <th>Exchange</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Size</th>
+                <th>Z</th>
+                <th>BPS</th>
+              </tr>
+            </thead>
+            <tbody id="outlierLevels"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Trade Stream</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Exchange</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Size</th>
+              </tr>
+            </thead>
+            <tbody id="tradeStream"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <div class="card orderbook">
+          <h2>Spot Order Book</h2>
+          <div class="legend orderbook-legend">
+            <span class="legend-item"><span class="swatch bybit-bid"></span>Bybit Bid</span>
+            <span class="legend-item"><span class="swatch bybit-ask"></span>Bybit Ask</span>
+            <span class="legend-item"><span class="swatch mexc-bid"></span>MEXC Bid</span>
+            <span class="legend-item"><span class="swatch mexc-ask"></span>MEXC Ask</span>
+          </div>
+          <div class="orderbook-grid">
+            <div>
+              <h3>Asks</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Price</th>
+                    <th>Size</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="orderbookAsks"></tbody>
+              </table>
+            </div>
+            <div>
+              <h3>Bids</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Price</th>
+                    <th>Size</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="orderbookBids"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card orderbook">
+          <h2>Perps Order Book</h2>
+          <div class="orderbook-grid">
+            <div>
+              <h3>Asks</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Price</th>
+                    <th>Size</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="perpOrderbookAsks"></tbody>
+              </table>
+            </div>
+            <div>
+              <h3>Bids</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Price</th>
+                    <th>Size</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="perpOrderbookBids"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
