@@ -7,6 +7,8 @@ const state = {
   lastMid: new Map(),
   oiFunding: new Map(),
   trades: [],
+  recentTrades: new Map(),
+  outlierLevelMap: new Map(),
 };
 
 const basePath = (() => {
@@ -35,7 +37,7 @@ const perpOrderbookAsks = document.getElementById("perpOrderbookAsks");
 const perpOrderbookBids = document.getElementById("perpOrderbookBids");
 const orderbookState = new Map();
 const perpOrderbookState = new Map();
-const Z_THRESHOLD = 4;
+const Z_THRESHOLD = 5;
 const BPS_WINDOW = 250;
 const outlierStore = new Map();
 const oiValue = document.getElementById("oiValue");
@@ -563,15 +565,18 @@ function renderOrderbook(symbol) {
   const depth = book.depth ?? book.bids?.length ?? 0;
   const asksAsc = buildStackedLevels(sources, "ask", book.mid, depth);
   const bidsDesc = buildStackedLevels(sources, "bid", book.mid, depth);
-  renderSide(orderbookAsks, asksAsc, "ask");
-  renderSide(orderbookBids, bidsDesc, "bid");
-  renderOutliers(
+  const outliers = computeOutliers(
     asksAsc.map((level) => [level.price, level.total]),
     bidsDesc.map((level) => [level.price, level.total]),
     book.mid,
     "Spot",
     sources.mexc ? "Aggregated" : "Bybit"
   );
+  const outlierKeys = new Set(outliers.map((row) => outlierKey(row.side, row.price)));
+  state.outlierLevelMap = buildOutlierLevelMap(asksAsc, bidsDesc, outlierKeys);
+  renderSide(orderbookAsks, asksAsc, "ask", outlierKeys);
+  renderSide(orderbookBids, bidsDesc, "bid", outlierKeys);
+  updateOutliers("Spot", outliers);
 }
 
 function renderPerpOrderbook(symbol) {
@@ -588,18 +593,18 @@ function renderPerpOrderbook(symbol) {
   renderSide(perpOrderbookAsks, asksAsc, "ask");
   renderSide(perpOrderbookBids, bidsDesc, "bid");
   updateHistogram(sources);
-  renderOutliers(
+  const outliers = computeOutliers(
     asksAsc.map((level) => [level.price, level.total]),
     bidsDesc.map((level) => [level.price, level.total]),
     book.mid,
     "Perp",
     "Aggregated"
   );
+  updateOutliers("Perp", outliers);
 }
 
-function renderSide(root, levels, side) {
+function renderSide(root, levels, side, outlierKeys) {
   root.innerHTML = "";
-  const stats = calcStats(levels.map((level) => [level.price, level.total]));
   const totals = [];
   let cumulativeTotal = 0;
   let cumulativeBybit = 0;
@@ -619,11 +624,10 @@ function renderSide(root, levels, side) {
   levels.forEach((level, index) => {
     const cumulative = totals[index];
     const tr = document.createElement("tr");
-    if (stats.stdDev > 0) {
-      const zScore = (level.total - stats.mean) / stats.stdDev;
-      if (zScore >= Z_THRESHOLD) {
-        tr.classList.add("outlier");
-      }
+    const key = outlierKey(side, level.price);
+    const isOutlier = outlierKeys ? outlierKeys.has(key) : false;
+    if (isOutlier) {
+      tr.classList.add("book-outlier");
     }
     const totalPct = (cumulative.total / maxTotal) * 100;
     const bybitPct = (cumulative.bybit / maxTotal) * 100;
@@ -637,6 +641,7 @@ function renderSide(root, levels, side) {
     const direction = side === "bid" ? "to left" : "to right";
     tr.style.backgroundImage = `linear-gradient(${direction}, ${colors.bybit} 0% ${bybitStop}%, ${colors.mexc} ${bybitStop}% ${mexcStop}%, transparent ${mexcStop}% 100%)`;
     tr.innerHTML = `
+      <td>${isOutlier ? `<span class="level-pill">${index + 1}</span>` : ""}</td>
       <td>${formatNumber(level.price, 5)}</td>
       <td>${formatNumber(level.total)}</td>
       <td>${formatNumber(cumulative.total)}</td>
@@ -645,10 +650,14 @@ function renderSide(root, levels, side) {
   });
 }
 
-function renderOutliers(asksDesc, bidsDesc, mid, market, exchange) {
+function computeOutliers(asksDesc, bidsDesc, mid, market, exchange) {
   const askOutliers = collectOutliers(asksDesc, "Ask", mid, market, exchange);
   const bidOutliers = collectOutliers(bidsDesc, "Bid", mid, market, exchange);
-  outlierStore.set(market, [...askOutliers, ...bidOutliers]);
+  return [...askOutliers, ...bidOutliers];
+}
+
+function updateOutliers(market, outliers) {
+  outlierStore.set(market, outliers);
   renderOutlierTable();
 }
 
@@ -695,13 +704,18 @@ function collectOutliers(levels, side, mid, market, exchange) {
 
 function renderOutlierTable() {
   outlierLevels.innerHTML = "";
-  const combined = [...(outlierStore.get("Spot") ?? []), ...(outlierStore.get("Perp") ?? [])]
+  const combined = [...(outlierStore.get("Spot") ?? [])]
     .sort((a, b) => b.zScore - a.zScore)
-    .slice(0, 12);
-  for (const row of combined) {
+    .slice(0, 5);
+  for (const [index, row] of combined.entries()) {
     const tr = document.createElement("tr");
+    tr.classList.add("outlier-row");
+    if (index < 2) {
+      tr.classList.add("outlier-pulse");
+    }
+    const levelIndex = state.outlierLevelMap.get(outlierKey(row.side, row.price));
     tr.innerHTML = `
-      <td>${row.market}</td>
+      <td>${levelIndex ? `<span class="level-pill">${levelIndex}</span>` : ""}</td>
       <td>${row.exchange ?? "--"}</td>
       <td>${row.side}</td>
       <td>${formatNumber(row.price, 5)}</td>
@@ -710,13 +724,6 @@ function renderOutlierTable() {
       <td>${formatNumber(row.bps, 2)}</td>
     `;
     outlierLevels.appendChild(tr);
-    if (row.exchange === "Aggregated") {
-      const breakdown = getPerpBreakdown(row.side, row.price);
-      if (breakdown) {
-        outlierLevels.appendChild(buildOutlierSubrow(row, "Bybit", breakdown.bybit));
-        outlierLevels.appendChild(buildOutlierSubrow(row, "MEXC", breakdown.mexc));
-      }
-    }
   }
 }
 
@@ -733,6 +740,28 @@ function buildOutlierSubrow(row, exchange, size) {
     <td></td>
   `;
   return tr;
+}
+
+function outlierKey(side, price) {
+  const normalizedSide = String(side).toLowerCase();
+  return `${normalizedSide}:${Number(price).toFixed(8)}`;
+}
+
+function buildOutlierLevelMap(asksAsc, bidsDesc, outlierKeys) {
+  const map = new Map();
+  for (const [index, level] of asksAsc.entries()) {
+    const key = outlierKey("ask", level.price);
+    if (outlierKeys.has(key)) {
+      map.set(key, index + 1);
+    }
+  }
+  for (const [index, level] of bidsDesc.entries()) {
+    const key = outlierKey("bid", level.price);
+    if (outlierKeys.has(key)) {
+      map.set(key, index + 1);
+    }
+  }
+  return map;
 }
 
 function getPerpBreakdown(side, price) {
@@ -924,12 +953,23 @@ symbolSelect.addEventListener("change", (event) => {
 function renderTrades() {
   if (!tradeStream || !state.selectedSymbol) return;
   tradeStream.innerHTML = "";
+  const now = Date.now();
+  for (const [key, ts] of state.recentTrades.entries()) {
+    if (now - ts > 1800) {
+      state.recentTrades.delete(key);
+    }
+  }
   const rows = state.trades
     .filter((trade) => trade.symbol === state.selectedSymbol)
     .slice(0, 10);
   for (const trade of rows) {
     const tr = document.createElement("tr");
     const sideClass = trade.side === "Buy" ? "delta-up" : "delta-down";
+    const key = tradeKey(trade);
+    const flash = state.recentTrades.has(key);
+    if (flash) {
+      tr.classList.add("trade-flash", trade.side === "Buy" ? "trade-buy" : "trade-sell");
+    }
     tr.innerHTML = `
       <td>${formatTime(trade.ts)}</td>
       <td>${trade.exchange}</td>
@@ -939,6 +979,10 @@ function renderTrades() {
     `;
     tradeStream.appendChild(tr);
   }
+}
+
+function tradeKey(trade) {
+  return [trade.ts, trade.exchange, trade.side, trade.price, trade.qty, trade.symbol].join("|");
 }
 
 function updateReportLinks() {
@@ -1019,6 +1063,7 @@ async function bootstrap() {
         const trade = payload.data;
         if (!trade || !trade.symbol) return;
         state.trades.unshift(trade);
+        state.recentTrades.set(tradeKey(trade), Date.now());
         if (state.trades.length > 500) {
           state.trades.length = 500;
         }
