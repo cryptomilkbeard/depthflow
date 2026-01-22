@@ -112,30 +112,6 @@
 
       <section class="grid">
         <div class="card">
-          <h2>Out-of-Band Levels</h2>
-          <div class="report-actions">
-            <a id="reportCsv" class="report-btn" href="/api/outliers/report/csv" target="_blank" rel="noopener">Export CSV</a>
-            <a id="reportPdf" class="report-btn report-btn--pdf" href="/api/outliers/report/pdf" target="_blank" rel="noopener">Export PDF</a>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Market</th>
-                <th>Exchange</th>
-                <th>Side</th>
-                <th>Price</th>
-                <th>Size</th>
-                <th>Z</th>
-                <th>BPS</th>
-              </tr>
-            </thead>
-            <tbody id="outlierLevels"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="grid">
-        <div class="card">
           <h2>Trade Stream</h2>
           <table>
             <thead>
@@ -148,6 +124,27 @@
               </tr>
             </thead>
             <tbody id="tradeStream"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Out-of-Band Levels</h2>
+          <table class="outlier-table">
+            <thead>
+              <tr>
+                <th>Lvl</th>
+                <th>Market</th>
+                <th>Exchange</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Size</th>
+                <th>Z</th>
+                <th>BPS</th>
+              </tr>
+            </thead>
+            <tbody id="outlierLevels"></tbody>
           </table>
         </div>
       </section>
@@ -167,6 +164,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th>Lvl</th>
                     <th>Price</th>
                     <th>Size</th>
                     <th>Total</th>
@@ -180,6 +178,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th>Lvl</th>
                     <th>Price</th>
                     <th>Size</th>
                     <th>Total</th>
@@ -199,6 +198,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th>Lvl</th>
                     <th>Price</th>
                     <th>Size</th>
                     <th>Total</th>
@@ -212,6 +212,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th>Lvl</th>
                     <th>Price</th>
                     <th>Size</th>
                     <th>Total</th>
